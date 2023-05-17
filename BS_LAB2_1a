@@ -1,0 +1,23 @@
+#include <stdio.h>
+#include <unistd.h>
+
+int main(int argc, char *argv[]) {
+    // Ensure file parameter was passed on program call
+    char *file_name = argv[1];
+    if (file_name == NULL) {
+        printf("Missing file path!\n");
+        return -1;
+    }
+
+    // Ensure file path is valid
+    FILE *file = fopen(file_name, "r");
+    if (file == NULL) {
+        printf("Invalid file path!\n");
+        return -1;
+    }
+    fclose(file);
+
+    // Delete all contents of file but keep the file itself
+    fclose(fopen(file_name, "w"));
+    printf("File content deleted!\n");
+}
