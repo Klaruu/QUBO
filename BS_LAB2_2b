@@ -14,6 +14,7 @@ enum State {
     writing, reading
 };
 
+int main(void) {
     pid_t npid = fork();
 
     char process_name;
