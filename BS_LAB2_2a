@@ -1,0 +1,104 @@
+#include <stdio.h>
+#include <unistd.h>
+
+#define FILE_NAME "test.txt"
+#define LOCK_FILE_NAME "test.txt.lock"
+
+enum State {
+    writing, reading
+};
+
+int main(void) {
+    pid_t npid = fork();
+
+    char process_name;
+    enum State state;
+    int error;
+    int temp;
+    FILE *lock;
+    FILE *file;
+
+    if (npid != 0) {
+        process_name = 'A';
+        state = writing;
+    } else {
+        process_name = 'B';
+        state = reading;
+    }
+    printf("This is process %c\n", process_name);
+
+    while (1) {
+        if (state == writing) {
+            // Wait for previously writing process to delete file
+            do {
+                file = fopen(FILE_NAME, "r");
+                if (file) fclose(file);
+                //printf("%c: Waiting for file deletion\n", process_name);
+            } while (file);
+            printf("%c: No file\n", process_name);
+            do {
+                lock = fopen(LOCK_FILE_NAME, "r"); // Check for lock
+                if (lock) fclose(lock);
+                //printf("%c: Waiting for other process to release lock.\n", process_name);
+            } while (lock);
+            printf("%c: No lock\n", process_name);
+            file = fopen(FILE_NAME, "w");       // Create file
+            lock = fopen(LOCK_FILE_NAME, "w");  // Create lock
+            fprintf(file, "Hello World from process %c.\n", process_name); // Write file
+
+            // Close file & remove lock
+            fclose(file);
+            fclose(lock);
+            error = remove(LOCK_FILE_NAME);
+            if (error == 0) printf("%c: Successfully deleted lock file.\n", process_name);
+            else printf("%c: Deleting lock file failed!\n", process_name);
+
+            sleep(1);   // Give the other process a chance to read the file
+
+            // Delete file
+            lock = fopen(LOCK_FILE_NAME, "r"); // Check for lock
+            do {
+                lock = fopen(LOCK_FILE_NAME, "r"); // Check for lock
+                if (lock) fclose(lock);
+            } while (lock);
+            error = remove(FILE_NAME);
+            if (error == 0) printf("%c: Successfully deleted file.\n", process_name);
+            else printf("%c: Deleting file failed!\n", process_name);
+
+            state = reading;    // Swap state
+        } else if (state == reading) {
+            do {
+                //printf("%c: No file\n", process_name);
+                file = fopen(FILE_NAME, "r");
+                if (file) fclose(file);
+            } while (!file);
+            printf("%c: Found file, %p\n", process_name, file);
+            do {
+                //printf("%c: Found lock, %p\n", process_name, lock);
+                lock = fopen(LOCK_FILE_NAME, "r"); // Check for lock
+                if (lock) fclose(lock);
+            } while (lock);
+            printf("%c: No lock\n", process_name);
+            // No lock, let's go for it
+            lock = fopen(LOCK_FILE_NAME, "w"); // Create lock
+
+            // Read file
+            file = fopen(FILE_NAME, "r");
+            if (file) {
+                printf("%c: Reading from file:\n", process_name);
+                while ((temp = getc(file)) != EOF) putchar(temp);
+                printf("%c: Finished reading file.\n", process_name);
+            }
+
+            // Close file & remove lock
+            fclose(file);
+            fclose(lock);
+            error = remove(LOCK_FILE_NAME);
+            if (error == 0) printf("%c: Successfully deleted lock file.\n", process_name);
+            else printf("%c: Deleting lock file failed!\n", process_name);
+
+            state = writing;
+        }
+
+    }
+}
